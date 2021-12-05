@@ -55,7 +55,7 @@ sub start_element {
 
         $self->_update_tags($svg, $group);
         $self->_stash(grouped => 1);
-        $self->_stash(svg => undef);
+        $self->_stash(svg     => undef);
         return unless $self->_stash('added_group');
     }
     $self->_push($name);
@@ -375,7 +375,7 @@ sub _group_id {
 
 sub _stash {
     my $self = shift;
-    my $key = shift;
+    my $key  = shift;
     if (@_) {
         $self->{_stash}{$key} = shift;
     }
