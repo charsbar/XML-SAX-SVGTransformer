@@ -6,3 +6,4 @@ MYMETA.*
 *.old
 *.bak
 .perl-version
+!Makefile.PL
