@@ -7,7 +7,7 @@ on 'configure' => sub {
 };
 
 on 'test' => sub {
-    requires 'Test::More' => '0.88'; # for done_testing
+    requires 'Test::More' => '0.96'; # for subtest
     requires 'Test::UseAllModules' => '0.10';
     requires 'XML::SAX';
     requires 'XML::SAX::Writer';
