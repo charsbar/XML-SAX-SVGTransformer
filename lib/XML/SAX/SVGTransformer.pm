@@ -397,6 +397,8 @@ sub _attr {
             return;
         }
     } else {
+        return unless exists $elem->{Attributes};
+        return unless exists $elem->{Attributes}{"{}$name"};
         return $elem->{Attributes}{"{}$name"}{Value};
     }
 }
