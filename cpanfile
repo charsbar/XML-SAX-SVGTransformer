@@ -1,4 +1,4 @@
-requires 'Math::Matrix';
+requires 'Math::Matrix' => '0.92';
 requires 'Math::Trig';
 requires 'XML::SAX::Base';
 
