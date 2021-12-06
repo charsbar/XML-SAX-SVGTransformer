@@ -6,7 +6,7 @@ use base 'XML::SAX::Base';
 use Math::Matrix;
 use Math::Trig qw/deg2rad/;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 our $GroupId = 'SVGTransformer';
 
 my $IdMatrix = Math::Matrix->id(4);
