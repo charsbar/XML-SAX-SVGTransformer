@@ -65,9 +65,13 @@ sub start_element {
 
 sub comment {
     my ($self, $comment) = @_;
-    if ($self->{_stash}) {
-        $self->{_comment} = $comment->{Data};
-        return;
+    if ($self->_stash('svg')) {
+        my $data  = $comment->{Data};
+        my @parts = split /(?:\s+|\s*,\s*)/, $data || '';
+        if (@parts == 4 && !grep !/^[-0-9.eE]+$/, @parts) {
+            $self->{_comment} = $data;
+            return;
+        }
     }
     $self->SUPER::comment($comment);
 }
