@@ -14,9 +14,10 @@ my $IdMatrix = Math::Matrix->id(4);
 sub start_document {
     my $self = shift;
     $self->SUPER::start_document(@_);
-    $self->{_stack} = [];
-    $self->{_ops}   = [];
-    $self->{_stash} = {};
+    $self->{_stack}   = [];
+    $self->{_ops}     = [];
+    $self->{_stash}   = {};
+    $self->{_comment} = '';
 }
 
 sub start_element {
