@@ -29,12 +29,14 @@ sub start_element {
         return;
     } elsif ($self->_stash('svg') && !$self->_stash('grouped')) {
         my $svg = $self->_stash('svg');
-        my $group;
+        $self->_stash(grouped => 1);
+        $self->_stash(svg     => undef);
         if ($name eq 'g' && (_attr($elem, 'id') || '') eq $self->_group_id) {
-            $group = $elem;
+            $self->_update_tags($svg, $elem);
+            return;
         } else {
             my $name = $svg->{Prefix} ? "$svg->{Prefix}:g" : "g";
-            $group = {
+            my $group = {
                 LocalName    => 'g',
                 Name         => $name,
                 Prefix       => $svg->{Prefix},
@@ -50,14 +52,9 @@ sub start_element {
                     },
                 },
             };
-
             $self->_stash(added_group => 1);
+            $self->_update_tags($svg, $group);
         }
-
-        $self->_update_tags($svg, $group);
-        $self->_stash(grouped => 1);
-        $self->_stash(svg     => undef);
-        return unless $self->_stash('added_group');
     }
     $self->_push($name);
     $self->SUPER::start_element(@_);
@@ -138,13 +135,20 @@ sub _update_tags {
     _attr($svg, 'height',  $view->{max_y});
     _attr($svg, 'viewBox', "0 0 $view->{max_x} $view->{max_y}");
 
-    _attr($group, 'transform', $self->_ops_to_transform);
-
     $self->_push('svg');
-    $self->_push('g');
     $self->SUPER::start_element($svg);
     $self->SUPER::comment({Data => $svg_viewbox});
-    $self->SUPER::start_element($group);
+
+    $transform = $self->_ops_to_transform;
+    if ($transform) {
+        _attr($group, 'transform', $transform);
+        $self->_push('g');
+        $self->SUPER::start_element($group);
+    } else {
+        if ($self->_stash('added_group')) {
+            $self->_stash(added_group => undef);
+        }
+    }
 
     $self->{_info} = {
         width   => $view->{max_x},
