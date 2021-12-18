@@ -219,6 +219,8 @@ sub _update_tags {
 sub _parse_transform {
     my ($self, $transform) = @_;
 
+    $transform = '' unless defined $transform;
+
     my @ops = @{$self->{_ops}};
     if ($transform) {
         my @parts = (lc $transform) =~ /(\w+(?:\([^)]*\))?)/g;
@@ -311,6 +313,8 @@ sub _ops_to_transform {
             push @transform, "scale($args[0] $args[1])";
         } elsif ($name eq 'translate') {
             next if !$args[0] && !$args[1];
+            $args[0] ||= 0;
+            $args[1] ||= 0;
             push @transform, "translate($args[0] $args[1])";
         }
     }
