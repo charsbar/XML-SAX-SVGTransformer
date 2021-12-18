@@ -116,6 +116,10 @@ sub _update_tags {
     my $svg_viewbox = _attr($svg, 'viewBox');
     my $svg_version = _attr($svg, 'version');
 
+    if (!$svg_viewbox && $svg_width && $svg_height) {
+        $svg_viewbox = "0 0 $svg_width $svg_height";
+    }
+
     my $transform = _attr($group, 'transform');
 
     my $view;
