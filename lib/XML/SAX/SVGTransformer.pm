@@ -79,15 +79,27 @@ sub end_element {
     my $name = lc $elem->{LocalName};
     my $prev = $self->{_stack}[-1] || '';
     if ($name eq 'svg') {
-        if ($self->_seen($name) == 1 && $self->_stash('added_group') && $prev eq 'g') {
-            $self->_pop($prev);
-            my $name = $elem->{Prefix} ? "$elem->{Prefix}:g" : 'g';
-            $self->SUPER::end_element({
+        my $left = 1;
+        $left++ if $self->_stash('added_wrapper');
+        if ($self->_seen($name) == $left) {
+            my $group_name = $elem->{Prefix} ? "$elem->{Prefix}:g" : 'g';
+            my $group      = {
                 LocalName    => 'g',
-                Name         => $name,
+                Name         => $group_name,
                 Prefix       => $elem->{Prefix},
                 NamespaceURI => $elem->{NamespaceURI},
-            });
+            };
+
+            if ($self->_stash('added_group') && $prev eq 'g') {
+                $self->_pop($prev);
+                $self->SUPER::end_element($group);
+            }
+            if ($self->_stash('added_wrapper')) {
+                $self->_pop($name);
+                $self->SUPER::end_element(@_);
+                $self->_pop($prev);
+                $self->SUPER::end_element($group);
+            }
         }
     }
     $self->_pop($name);
@@ -119,7 +131,7 @@ sub _update_tags {
     }
     _translate($view);
 
-    my $scale = _scale($view, @$self{qw/Width Height/});
+    my $scale = $self->_scale($view, @$self{qw/Width Height/});
     push @{$self->{_ops}}, ['scale', @$scale];
 
     $self->_parse_transform($transform);
@@ -130,6 +142,49 @@ sub _update_tags {
     _translate($view);
 
     push @{$self->{_ops}}, ['translate', @$view{qw/tx ty/}];
+
+    my $width  = $view->{max_x};
+    my $height = $view->{max_y};
+
+    if ($self->{KeepAspectRatio}) {
+        $width  = $self->{Width};
+        $height = $self->{Height};
+        my @offset = (0, 0);
+        if ($width > $view->{max_x}) {
+            $offset[0] = ($width - $view->{max_x}) / 2;
+        }
+        if ($height > $view->{max_y}) {
+            $offset[1] = ($height - $view->{max_y}) / 2;
+        }
+
+        if ($offset[0] or $offset[1]) {
+            my $wrapper = {
+                LocalName    => $svg->{LocalName},
+                Name         => $svg->{Name},
+                Prefix       => $svg->{Prefix},
+                NamespaceURI => $svg->{NamespaceURI},
+            };
+            my $wrapper_group = {
+                LocalName    => $group->{LocalName},
+                Name         => $group->{Name},
+                Prefix       => $group->{Prefix},
+                NamespaceURI => $group->{NamespaceURI},
+            };
+            _attr($wrapper, 'width',   $width);
+            _attr($wrapper, 'height',  $height);
+            _attr($wrapper, 'viewBox', "0 0 $width $height");
+
+            _attr($wrapper_group, 'transform', "translate($offset[0] $offset[1])");
+
+            _attr($group, 'id', undef);
+
+            $self->_push('svg');
+            $self->_push('g');
+            $self->SUPER::start_element($wrapper);
+            $self->SUPER::start_element($wrapper_group);
+            $self->_stash(added_wrapper => 1);
+        }
+    }
 
     _attr($svg, 'width',   $view->{max_x});
     _attr($svg, 'height',  $view->{max_y});
@@ -151,8 +206,8 @@ sub _update_tags {
     }
 
     $self->{_info} = {
-        width   => $view->{max_x},
-        height  => $view->{max_y},
+        width   => $width,
+        height  => $height,
         version => $svg_version,
     };
 }
@@ -329,7 +384,7 @@ sub _to_hash {
 }
 
 sub _scale {
-    my ($set, $x, $y) = @_;
+    my ($self, $set, $x, $y) = @_;
 
     my ($scale_x, $scale_y) = (1, 1);
     if ($x && $y) {
@@ -338,6 +393,13 @@ sub _scale {
         }
         if ($set->{max_y}) {
             $scale_y = $y / $set->{max_y};
+        }
+        if ($self->{KeepAspectRatio}) {
+            if ($scale_x > $scale_y) {
+                $scale_x = $scale_y;
+            } else {
+                $scale_y = $scale_x;
+            }
         }
     } elsif ($x) {
         if ($set->{max_x}) {
@@ -473,6 +535,11 @@ An xpected image height. The actual height may be different.
 
 You can set both Width and Height, but you usually get a better
 result when you specify only one of them.
+
+=item KeepAspectRatio
+
+If set to true, aspect ratio is kept when both Width and Height
+are set.
 
 =item Transform
 
