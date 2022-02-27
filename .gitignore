@@ -7,3 +7,4 @@ MYMETA.*
 *.bak
 .perl-version
 !Makefile.PL
+/t/images/
