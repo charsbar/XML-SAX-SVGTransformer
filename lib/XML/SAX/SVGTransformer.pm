@@ -102,8 +102,6 @@ sub _update_tags {
         $svg_viewbox = "0 0 $svg_width $svg_height";
     }
 
-    my $transform = _attr($group, 'transform');
-
     my $view;
     @$view{qw/min_x min_y max_x max_y tx ty w h/} = (0) x 8;
 
@@ -142,6 +140,8 @@ sub _update_tags {
 
     my $scale = $self->_scale($view, @$self{qw/Width Height/});
     push @{$self->{_ops}}, ['scale', @$scale];
+
+    my $transform = _attr($group, 'transform');
 
     $self->_parse_transform($transform);
 
