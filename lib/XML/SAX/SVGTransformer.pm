@@ -117,7 +117,6 @@ sub _update_tags {
         $view->{max_x} = $view->{w} = _numify($svg_width);
         $view->{max_y} = $view->{h} = _numify($svg_height);
     }
-    _translate($view);
 
     my $new_group;
     if (!$group) {
