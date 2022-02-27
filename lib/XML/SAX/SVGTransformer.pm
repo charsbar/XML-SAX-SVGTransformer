@@ -354,12 +354,12 @@ sub _flatten {
 sub _translate {
     my $set = shift;
 
-    if ($set->{min_x} && $set->{min_x} < 0) {
+    if ($set->{min_x}) {
         $set->{max_x} -= $set->{min_x};
         $set->{tx}    -= $set->{min_x};
         $set->{min_x} = 0;
     }
-    if ($set->{min_y} && $set->{min_y} < 0) {
+    if ($set->{min_y}) {
         $set->{max_y} -= $set->{min_y};
         $set->{ty}    -= $set->{min_y};
         $set->{min_y} = 0;
