@@ -24,37 +24,16 @@ sub start_element {
     my $self = shift;
     my $elem = $_[0];
     my $name = lc $elem->{LocalName};
-    if ($name eq 'svg' && !$self->_seen($name)) {
-        $self->_stash(svg => $elem);
+    if ($name eq 'svg' && !$self->_seen($name) && !$self->_stash($name)) {
+        $self->_stash(svg    => $elem);
+        $self->_stash(prefix => $elem->{Prefix});
         return;
-    } elsif ($self->_stash('svg') && !$self->_stash('grouped')) {
-        my $svg = $self->_stash('svg');
-        $self->_stash(grouped => 1);
-        $self->_stash(svg     => undef);
+    } elsif ($self->_stash('svg') && !$self->_stash('updated')) {
+        my @args;
         if ($name eq 'g' && (_attr($elem, 'id') || '') eq $self->_group_id) {
-            $self->_update_tags($svg, $elem);
-            return;
-        } else {
-            my $name = $svg->{Prefix} ? "$svg->{Prefix}:g" : "g";
-            my $group = {
-                LocalName    => 'g',
-                Name         => $name,
-                Prefix       => $svg->{Prefix},
-                NamespaceURI => $svg->{NamespaceURI},
-                Attributes   => {
-                    '{}id' => {
-                        Name  => 'id',
-                        Value => $self->_group_id,
-                    },
-                    '{}transform' => {
-                        Name  => 'transform',
-                        Value => '',
-                    },
-                },
-            };
-            $self->_stash(added_group => 1);
-            $self->_update_tags($svg, $group);
+            push @args, $elem;
         }
+        $self->_update_tags(@args);
     }
     $self->_push($name);
     $self->SUPER::start_element(@_);
@@ -74,42 +53,45 @@ sub comment {
 }
 
 sub end_element {
-    my $self = shift;
-    my $elem = $_[0];
-    my $name = lc $elem->{LocalName};
-    my $prev = $self->{_stack}[-1] || '';
-    if ($name eq 'svg') {
-        my $left = 1;
-        $left++ if $self->_stash('added_wrapper');
-        if ($self->_seen($name) == $left) {
-            my $group_name = $elem->{Prefix} ? "$elem->{Prefix}:g" : 'g';
-            my $group      = {
-                LocalName    => 'g',
-                Name         => $group_name,
-                Prefix       => $elem->{Prefix},
-                NamespaceURI => $elem->{NamespaceURI},
-            };
-
-            if ($self->_stash('added_group') && $prev eq 'g') {
-                $self->_pop($prev);
-                $self->SUPER::end_element($group);
-            }
-            if ($self->_stash('added_wrapper')) {
-                $self->_pop($name);
-                $self->SUPER::end_element(@_);
-                $self->_pop($prev);
-                $self->SUPER::end_element($group);
-            }
-        }
+    my $self   = shift;
+    my $elem   = $_[0];
+    my $name   = lc $elem->{LocalName};
+    my $popped = $self->_pop($name);
+    while (ref $popped) {
+        $self->_end_added_elements($popped);
+        $popped = $self->_pop($name);
     }
-    $self->_pop($name);
     $self->SUPER::end_element(@_);
+}
+
+sub end_document {
+    my $self    = shift;
+    my @stacked = @{$self->{_stack}};
+    return unless @stacked;
+    while (my $popped = pop @stacked) {
+        die "Broken! got: $popped left:" . join(",", @stacked) unless ref $popped;
+        $self->_end_added_elements($popped);
+    }
+}
+
+sub _end_added_elements {
+    my ($self, $tags) = @_;
+    for my $tag (reverse @$tags) {
+        my $prefix = $self->_stash('prefix');
+        $self->SUPER::end_element({
+            LocalName => $tag,
+            Name      => $prefix ? "$prefix:$tag" : $tag,
+            Prefix    => $prefix,
+        });
+    }
 }
 
 sub info { shift->{_info} || {} }
 
 sub _update_tags {
-    my ($self, $svg, $group) = @_;
+    my ($self, $group) = @_;
+
+    my $svg = $self->_delete_stash('svg');
 
     my $svg_width   = _attr($svg, 'width');
     my $svg_height  = _attr($svg, 'height');
@@ -136,6 +118,28 @@ sub _update_tags {
         $view->{max_y} = $view->{h} = _numify($svg_height);
     }
     _translate($view);
+
+    my $new_group;
+    if (!$group) {
+        my $prefix = $svg->{Prefix} ? "$svg->{Prefix}:" : "";
+        $group = {
+            LocalName    => 'g',
+            Name         => $prefix . 'g',
+            Prefix       => $svg->{Prefix},
+            NamespaceURI => $svg->{NamespaceURI},
+            Attributes   => {
+                '{}id' => {
+                    Name  => 'id',
+                    Value => $self->_group_id,
+                },
+                '{}transform' => {
+                    Name  => 'transform',
+                    Value => '',
+                },
+            },
+        };
+        $new_group = 1;
+    }
 
     my $scale = $self->_scale($view, @$self{qw/Width Height/});
     push @{$self->{_ops}}, ['scale', @$scale];
@@ -184,11 +188,9 @@ sub _update_tags {
 
             _attr($group, 'id', undef);
 
-            $self->_push('svg');
-            $self->_push('g');
+            $self->_push(['svg', 'g']);
             $self->SUPER::start_element($wrapper);
             $self->SUPER::start_element($wrapper_group);
-            $self->_stash(added_wrapper => 1);
         }
     }
 
@@ -201,15 +203,13 @@ sub _update_tags {
     $self->SUPER::comment({Data => $svg_viewbox});
 
     $transform = $self->_ops_to_transform;
-    if ($transform) {
-        _attr($group, 'transform', $transform);
-        $self->_push('g');
+    _attr($group, 'transform', $transform);
+    if ($new_group) {
+        $self->_push(['g']);
         $self->SUPER::start_element($group);
-    } else {
-        if ($self->_stash('added_group')) {
-            $self->_stash(added_group => undef);
-        }
     }
+
+    $self->_stash(updated => 1);
 
     $self->{_info} = {
         width   => $width,
@@ -435,7 +435,7 @@ sub _push {
 sub _pop {
     my ($self, $name) = @_;
     my $popped = pop @{$self->{_stack}};
-    if ($name ne $popped) {
+    if (!ref $popped && $name ne $popped) {
         die "Broken! expected: $name got: $popped left:" . join(",", @{$self->{_stack}});
     }
     $popped;
@@ -463,6 +463,11 @@ sub _stash {
         $self->{_stash}{$key} = shift;
     }
     $self->{_stash}{$key};
+}
+
+sub _delete_stash {
+    my ($self, $key) = @_;
+    delete $self->{_stash}{$key};
 }
 
 sub _attr {
