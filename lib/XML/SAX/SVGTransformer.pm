@@ -203,7 +203,7 @@ sub _update_tags {
 
     $transform = $self->_ops_to_transform;
     _attr($group, 'transform', $transform);
-    if ($new_group) {
+    if ($new_group && $transform) {
         $self->_push(['g']);
         $self->SUPER::start_element($group);
     }
