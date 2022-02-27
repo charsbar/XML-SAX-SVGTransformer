@@ -123,15 +123,17 @@ sub _update_tags {
     my $transform = _attr($group, 'transform');
 
     my $view;
-    @$view{qw/min_x min_y max_x max_y tx ty/} = (0, 0, 0, 0, 0, 0);
+    @$view{qw/min_x min_y max_x max_y tx ty w h/} = (0) x 8;
 
     $svg_viewbox = $self->{_comment} if $self->{_comment};
 
     if ($svg_viewbox) {
-        @$view{qw/min_x min_y max_x max_y/} = _split($svg_viewbox);
+        @$view{qw/min_x min_y w h/} = _split($svg_viewbox);
+        $view->{max_x}              = $view->{min_x} + $view->{w};
+        $view->{max_y}              = $view->{min_y} + $view->{h};
     } else {
-        $view->{max_x} = _numify($svg_width);
-        $view->{max_y} = _numify($svg_height);
+        $view->{max_x} = $view->{w} = _numify($svg_width);
+        $view->{max_y} = $view->{h} = _numify($svg_height);
     }
     _translate($view);
 
@@ -147,18 +149,18 @@ sub _update_tags {
 
     push @{$self->{_ops}}, ['translate', @$view{qw/tx ty/}];
 
-    my $width  = $view->{max_x};
-    my $height = $view->{max_y};
+    my $width  = $view->{w};
+    my $height = $view->{h};
 
     if ($self->{KeepAspectRatio}) {
         $width  = $self->{Width};
         $height = $self->{Height};
         my @offset = (0, 0);
-        if ($width > $view->{max_x}) {
-            $offset[0] = ($width - $view->{max_x}) / 2;
+        if ($width > $view->{w}) {
+            $offset[0] = ($width - $view->{w}) / 2;
         }
-        if ($height > $view->{max_y}) {
-            $offset[1] = ($height - $view->{max_y}) / 2;
+        if ($height > $view->{h}) {
+            $offset[1] = ($height - $view->{h}) / 2;
         }
 
         if ($offset[0] or $offset[1]) {
@@ -190,9 +192,9 @@ sub _update_tags {
         }
     }
 
-    _attr($svg, 'width',   $view->{max_x});
-    _attr($svg, 'height',  $view->{max_y});
-    _attr($svg, 'viewBox', "0 0 $view->{max_x} $view->{max_y}");
+    _attr($svg, 'width',   $view->{w});
+    _attr($svg, 'height',  $view->{h});
+    _attr($svg, 'viewBox', "0 0 $view->{w} $view->{h}");
 
     $self->_push('svg');
     $self->SUPER::start_element($svg);
@@ -341,8 +343,8 @@ sub _flatten {
     my @values = map { _numify($_) } (
         $array->[0][0],
         $array->[1][0],
-        $array->[0][1],
-        $array->[1][1],
+        $array->[0][1] - $array->[0][0],
+        $array->[1][1] - $array->[1][0],
         $array->[0][2] + $array->[0][3],
         $array->[1][2] + $array->[1][3],
     );
@@ -388,6 +390,8 @@ sub _to_hash {
     $hash{max_y} = $y->max->as_array->[0][0];
     $hash{tx}    = $tx->min->as_array->[0][0];
     $hash{ty}    = $ty->min->as_array->[0][0];
+    $hash{w}     = $hash{max_x} - $hash{min_x};
+    $hash{h}     = $hash{max_y} - $hash{min_y};
     \%hash;
 }
 
@@ -396,11 +400,11 @@ sub _scale {
 
     my ($scale_x, $scale_y) = (1, 1);
     if ($x && $y) {
-        if ($set->{max_x}) {
-            $scale_x = $x / $set->{max_x};
+        if ($set->{w}) {
+            $scale_x = $x / $set->{w};
         }
-        if ($set->{max_y}) {
-            $scale_y = $y / $set->{max_y};
+        if ($set->{h}) {
+            $scale_y = $y / $set->{h};
         }
         if ($self->{KeepAspectRatio}) {
             if ($scale_x > $scale_y) {
@@ -410,13 +414,13 @@ sub _scale {
             }
         }
     } elsif ($x) {
-        if ($set->{max_x}) {
-            $scale_x = $x / $set->{max_x};
+        if ($set->{w}) {
+            $scale_x = $x / $set->{w};
         }
         $scale_y = $scale_x;
     } elsif ($y) {
-        if ($set->{max_y}) {
-            $scale_y = $y / $set->{max_y};
+        if ($set->{h}) {
+            $scale_y = $y / $set->{h};
         }
         $scale_x = $scale_y;
     }
